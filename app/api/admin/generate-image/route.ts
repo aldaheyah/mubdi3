@@ -52,35 +52,60 @@ export async function POST(request: NextRequest) {
       aspectRatio: body.aspectRatio,
     })
 
-    const fileExtension = result.contentType.includes('jpeg') ? 'jpg' : 'png'
+    const fileExtension =
+      result.contentType?.includes('jpeg') ? 'jpg' : 'png'
+
     const filePath = `generated/${randomUUID()}.${fileExtension}`
-    const imageBuffer = Buffer.from(await result.blob.arrayBuffer())
+
+    // ✅ الحل الصحيح هنا
+    let imageBuffer: Buffer
+
+    if (typeof result === 'string') {
+      const base64Data = result.includes(',')
+        ? result.split(',')[1]
+        : result
+
+      imageBuffer = Buffer.from(base64Data, 'base64')
+    } else {
+      const res = result as Response
+      const arrayBuffer = await res.arrayBuffer()
+      imageBuffer = Buffer.from(arrayBuffer)
+    }
+
     const supabase = getStorageClient()
 
     const { error: uploadError } = await supabase.storage
       .from('artworks')
       .upload(filePath, imageBuffer, {
-        contentType: result.contentType,
+        contentType: result.contentType || 'image/png',
         upsert: false,
       })
 
     if (uploadError) {
       console.error('Supabase upload error:', uploadError)
-      return NextResponse.json({ error: 'Failed to upload generated image' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to upload generated image' },
+        { status: 500 }
+      )
     }
 
-    const { data } = supabase.storage.from('artworks').getPublicUrl(filePath)
+    const { data } = supabase.storage
+      .from('artworks')
+      .getPublicUrl(filePath)
 
     return NextResponse.json({
       imageUrl: data.publicUrl,
-      tool: `Hugging Face / ${result.model}`,
+      tool: `Hugging Face / ${result.model || 'unknown'}`,
     })
   } catch (error) {
     console.error('Image generation failed:', error)
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Image generation failed',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Image generation failed',
       },
       { status: 500 }
     )
