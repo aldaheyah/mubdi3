@@ -20,6 +20,9 @@ export default function NavbarClient() {
 
   return (
     <div className="flex items-center gap-6">
+      <a href="/studio" className="text-sm text-gray-500 hover:text-[#B8892A] transition-colors font-medium">
+        جرّب
+      </a>
       <a href="/gallery" className="text-sm text-gray-500 hover:text-[#B8892A] transition-colors font-medium">
         المعرض
       </a>

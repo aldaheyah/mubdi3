@@ -5,6 +5,7 @@ import { Artwork } from '@/data/artworks'
 import CopyButton from '@/components/CopyButton'
 import FavoriteButton from '@/components/FavoriteButton'
 import ArtworkRegenerator from '@/components/ArtworkRegenerator'
+import PromptEditor from '@/components/PromptEditor'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -95,6 +96,8 @@ export default async function ArtworkDetail({ params }: Props) {
                 {art.prompt}
               </p>
             </div>
+
+            <PromptEditor artworkId={art.id} initialPrompt={art.prompt} />
 
             {/* الترجمة */}
             {art.prompt_ar && (
