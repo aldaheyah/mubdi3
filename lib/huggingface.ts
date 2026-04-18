@@ -52,7 +52,7 @@ export async function generateImage(prompt: string, options: GenerateImageOption
   return {
     blob: image,
     model: DEFAULT_MODEL,
-    contentType: image.type || 'image/png',
+    contentType: 'image/png',
     aspectRatio,
   }
 }
