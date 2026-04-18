@@ -79,7 +79,7 @@ async function generateWithOpenAI(prompt: string): Promise<GenerateImageResult> 
   }
 
   return {
-    bytes: Buffer.from(imageBase64, 'base64'),
+    bytes: Buffer.from(imageBase64, 'base64').buffer,
     contentType: 'image/png',
     provider: 'openai',
     model: OPENAI_IMAGE_MODEL,
