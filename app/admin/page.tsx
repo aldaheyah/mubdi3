@@ -15,12 +15,24 @@ const defaultForm = {
   prompt_ar: '',
 }
 
+type ArtworkForm = typeof defaultForm
+
+const defaultGeneration = {
+  prompt: '',
+  negativePrompt: '',
+  aspectRatio: '1:1',
+}
+
 export default function Admin() {
   const [tab, setTab] = useState<'list' | 'add'>('list')
   const [artworks, setArtworks] = useState<Artwork[]>([])
-  const [form, setForm] = useState<any>(defaultForm)
+  const [form, setForm] = useState<ArtworkForm>(defaultForm)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null)
+  const [generationForm, setGenerationForm] = useState(defaultGeneration)
+  const [generationLoading, setGenerationLoading] = useState(false)
+  const [generationError, setGenerationError] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -46,6 +58,8 @@ export default function Admin() {
     const file = e.target.files?.[0]
     if (!file) return
     setImageFile(file)
+    setGeneratedImageUrl(null)
+    setGenerationError('')
     setPreview(URL.createObjectURL(file))
   }
 
@@ -61,6 +75,13 @@ export default function Admin() {
     })
     setPreview(art.image_url)
     setImageFile(null)
+    setGeneratedImageUrl(art.image_url)
+    setGenerationForm({
+      prompt: art.prompt,
+      negativePrompt: '',
+      aspectRatio: '1:1',
+    })
+    setGenerationError('')
     setMessage('')
     setTab('add')
   }
@@ -87,6 +108,10 @@ export default function Admin() {
     let image_url = editingId
       ? artworks.find((a) => a.id === editingId)?.image_url || null
       : null
+
+    if (generatedImageUrl) {
+      image_url = generatedImageUrl
+    }
 
     if (imageFile) {
       const fileName = `${Date.now()}-${imageFile.name}`
@@ -122,6 +147,10 @@ export default function Admin() {
         setEditingId(null)
         setForm(defaultForm)
         setPreview(null)
+        setImageFile(null)
+        setGeneratedImageUrl(null)
+        setGenerationForm(defaultGeneration)
+        setGenerationError('')
         fetchArtworks()
         setTimeout(() => setTab('list'), 1000)
       }
@@ -139,9 +168,59 @@ export default function Admin() {
         setForm(defaultForm)
         setImageFile(null)
         setPreview(null)
+        setGeneratedImageUrl(null)
+        setGenerationForm(defaultGeneration)
+        setGenerationError('')
         fetchArtworks()
         setTimeout(() => setTab('list'), 1000)
       }
+    }
+  }
+
+  const handleGenerate = async () => {
+    const prompt = generationForm.prompt.trim()
+
+    if (!prompt) {
+      setGenerationError('أدخل وصف الصورة أولاً')
+      return
+    }
+
+    setGenerationLoading(true)
+    setGenerationError('')
+
+    try {
+      const response = await fetch('/api/admin/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          negativePrompt: generationForm.negativePrompt.trim() || undefined,
+          aspectRatio: generationForm.aspectRatio,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'تعذر توليد الصورة')
+      }
+
+      setGeneratedImageUrl(payload.imageUrl)
+      setImageFile(null)
+      setPreview(payload.imageUrl)
+      setForm((current) => ({
+        ...current,
+        prompt,
+        tool: current.tool || payload.tool,
+        type: 'image',
+      }))
+      setMessage('')
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'تعذر توليد الصورة')
+    } finally {
+      setGenerationLoading(false)
     }
   }
 
@@ -149,6 +228,10 @@ export default function Admin() {
     setEditingId(null)
     setForm(defaultForm)
     setPreview(null)
+    setImageFile(null)
+    setGeneratedImageUrl(null)
+    setGenerationForm(defaultGeneration)
+    setGenerationError('')
     setMessage('')
     setTab('list')
   }
@@ -185,7 +268,17 @@ export default function Admin() {
           الأعمال ({artworks.length})
         </button>
         <button
-          onClick={() => { setTab('add'); setEditingId(null); setForm(defaultForm); setPreview(null); setMessage('') }}
+          onClick={() => {
+            setTab('add')
+            setEditingId(null)
+            setForm(defaultForm)
+            setPreview(null)
+            setImageFile(null)
+            setGeneratedImageUrl(null)
+            setGenerationForm(defaultGeneration)
+            setGenerationError('')
+            setMessage('')
+          }}
           className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
             tab === 'add'
               ? 'bg-[#B8892A] text-white'
@@ -251,6 +344,66 @@ export default function Admin() {
             </div>
           )}
 
+          <div className="rounded-2xl border border-[#B8892A]/20 bg-amber-50/40 p-5 flex flex-col gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-[#B8892A]">Generate with AI</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                ولّد صورة جديدة عبر Hugging Face ثم احفظها ضمن نفس نموذج العمل.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 font-medium block mb-1">AI Prompt *</label>
+              <textarea
+                value={generationForm.prompt}
+                onChange={(e) => setGenerationForm({ ...generationForm, prompt: e.target.value })}
+                rows={4}
+                placeholder="A cinematic Arabian palace at sunset..."
+                dir="ltr"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-[#B8892A] resize-none bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Negative Prompt</label>
+              <textarea
+                value={generationForm.negativePrompt}
+                onChange={(e) => setGenerationForm({ ...generationForm, negativePrompt: e.target.value })}
+                rows={2}
+                placeholder="blurry, distorted, extra limbs"
+                dir="ltr"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-[#B8892A] resize-none bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Aspect Ratio</label>
+              <select
+                value={generationForm.aspectRatio}
+                onChange={(e) => setGenerationForm({ ...generationForm, aspectRatio: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#B8892A] bg-white"
+              >
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+              </select>
+            </div>
+
+            {generationError && (
+              <p className="text-sm font-medium text-red-500">{generationError}</p>
+            )}
+
+            <button
+              onClick={handleGenerate}
+              disabled={generationLoading}
+              className="bg-[#0C0A08] text-white py-3 rounded-xl text-sm font-medium hover:bg-black transition-colors disabled:opacity-50"
+            >
+              {generationLoading ? 'جارٍ التوليد...' : 'Generate Image'}
+            </button>
+          </div>
+
           {/* رفع الصورة */}
           <div>
             <label className="text-xs text-gray-500 font-medium block mb-2">صورة العمل</label>
@@ -258,7 +411,14 @@ export default function Admin() {
               <input type="file" accept="image/*" onChange={handleImage} className="hidden" id="image-upload" />
               <label htmlFor="image-upload" className="cursor-pointer block">
                 {preview ? (
-                  <img src={preview} alt="preview" className="w-full h-48 object-cover rounded-lg" />
+                  <Image
+                    src={preview}
+                    alt="preview"
+                    width={1200}
+                    height={800}
+                    unoptimized
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
                 ) : (
                   <div className="py-8">
                     <div className="text-3xl mb-2">🖼️</div>
