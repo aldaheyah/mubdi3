@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       imageBuffer = Buffer.from(arrayBuffer)
     }
 
-    return new NextResponse(imageBuffer, {
+    return new NextResponse(new Uint8Array(imageBuffer), {
       status: 200,
       headers: {
         'Content-Type': result.contentType || 'image/png',
