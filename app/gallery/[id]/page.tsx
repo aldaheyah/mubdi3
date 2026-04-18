@@ -1,8 +1,10 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Artwork } from '@/data/artworks'
 import CopyButton from '@/components/CopyButton'
 import FavoriteButton from '@/components/FavoriteButton'
+import ArtworkRegenerator from '@/components/ArtworkRegenerator'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -22,9 +24,9 @@ export default async function ArtworkDetail({ params }: Props) {
       <main className="min-h-screen p-8 text-center flex items-center justify-center bg-gray-50">
         <div>
           <h1 className="text-2xl text-gray-400 mb-4">العمل غير موجود</h1>
-          <a href="/gallery" className="inline-block text-sm text-[#B8892A] hover:underline">
+          <Link href="/gallery" className="inline-block text-sm text-[#B8892A] hover:underline">
             العودة للمعرض
-          </a>
+          </Link>
         </div>
       </main>
     )
@@ -105,6 +107,8 @@ export default async function ArtworkDetail({ params }: Props) {
                 </p>
               </div>
             )}
+
+            <ArtworkRegenerator initialPrompt={art.prompt} title={art.title} />
           </div>
 
           {/* الأزرار في الأسفل */}
