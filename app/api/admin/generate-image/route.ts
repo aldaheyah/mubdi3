@@ -13,8 +13,12 @@ type GenerateImageRequest = {
   aspectRatio?: '1:1' | '4:3' | '3:4' | '16:9' | '9:16'
 }
 
-// ✅ تعريف نوع واضح لنتيجة HuggingFace
-type HFResult = string | Response
+// ✅ النوع الصحيح الحقيقي
+type HFResult = {
+  blob: Blob | string
+  contentType: string
+  model?: string
+}
 
 function getStorageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -50,23 +54,27 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // ✅ هنا التايب صار واضح
     const result = (await generateImage(prompt, {
       negativePrompt: body.negativePrompt,
       aspectRatio: body.aspectRatio,
     })) as HFResult
 
-    const filePath = `generated/${randomUUID()}.png`
+    const fileExtension =
+      result.contentType?.includes('jpeg') ? 'jpg' : 'png'
+
+    const filePath = `generated/${randomUUID()}.${fileExtension}`
 
     let imageBuffer: Buffer
 
-    if (typeof result === 'string') {
-      // base64 string
-      const base64Data = result.split(',')[1] || result
+    // ✅ التعامل الصحيح مع blob
+    if (typeof result.blob === 'string') {
+      const base64Data = result.blob.includes(',')
+        ? result.blob.split(',')[1]
+        : result.blob
+
       imageBuffer = Buffer.from(base64Data, 'base64')
     } else {
-      // Response
-      const arrayBuffer = await result.arrayBuffer()
+      const arrayBuffer = await result.blob.arrayBuffer()
       imageBuffer = Buffer.from(arrayBuffer)
     }
 
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest) {
     const { error: uploadError } = await supabase.storage
       .from('artworks')
       .upload(filePath, imageBuffer, {
-        contentType: 'image/png',
+        contentType: result.contentType || 'image/png',
         upsert: false,
       })
 
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       imageUrl: data.publicUrl,
-      tool: 'Hugging Face',
+      tool: `Hugging Face / ${result.model || 'unknown'}`,
     })
   } catch (error) {
     console.error('Image generation failed:', error)
