@@ -25,8 +25,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await generateImage(prompt)
-    const imageBuffer = Buffer.from(await result.blob.arrayBuffer())
+    let imageBuffer: Buffer
 
+    if (typeof result === 'string') {
+      const base64Data = result.includes(',')
+        ? result.split(',')[1]
+        : result
+    
+      imageBuffer = Buffer.from(base64Data, 'base64')
+    } else {
+      const res = result as Response
+      const arrayBuffer = await res.arrayBuffer()
+      imageBuffer = Buffer.from(arrayBuffer)
+    }
     return new NextResponse(imageBuffer, {
       status: 200,
       headers: {
